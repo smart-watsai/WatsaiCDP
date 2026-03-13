@@ -1,33 +1,428 @@
 <!DOCTYPE html>
-<html lang="th">
+<html>
 <head>
-  <meta charset="UTF-8">
+  <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Office | อบต. วัดไทรย์</title>
-
-  <link rel="apple-touch-icon" sizes="180x180" href="https://img2.pic.in.th/0c1d08c64915f310b3ee57ac86326fc4.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="https://img2.pic.in.th/0c1d08c64915f310b3ee57ac86326fc4.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="https://img2.pic.in.th/0c1d08c64915f310b3ee57ac86326fc4.png">
-
-  <style>
-    /* ทำให้ Iframe เต็มจอ 100% โดยไม่มีขอบขาว */
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      background-color: #f4f7fa; /* สีพื้นหลังเดียวกับระบบ */
-    }
-    iframe {
-      border: none;
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-  </style>
+  <meta name="theme-color" content="#0f172a">
+  
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.osmbuildings.org/classic/0.2.2b/OSMBuildings-Leaflet.js"></script>
+  
+  <?!= include('CSS'); ?>
 </head>
 <body>
-  <iframe src="https://script.google.com/macros/s/AKfycbzYdk9HTdu0aKFhPzLaEkf75y6_1pq-2Z8qwc8S9N3SLjrzFwZ1bn_Koqpok6LfDGGV/exec"></iframe>
+
+  <div id="splash-screen">
+    <img src="https://i.ibb.co/WvFmkCZ4/1.png" alt="โลโก้ อบต.วัดไทรย์" class="splash-logo">
+    <div class="spinner"></div>
+    <div class="splash-text">กำลังเชื่อมต่อศูนย์ข้อมูลเมืองอัจฉริยะ...</div>
+    <div class="splash-sub">องค์การบริหารส่วนตำบลวัดไทรย์</div>
+  </div>
+
+  <button class="mobile-menu-btn" onclick="toggleMobileSidebar()"><i class="fas fa-bars"></i></button>
+
+  <div id="sidebar">
+    <div class="header">
+      <img src="https://i.ibb.co/WvFmkCZ4/1.png" alt="โลโก้ อบต.วัดไทรย์" class="header-logo">
+      <h3>องค์การบริหารส่วนตำบลวัดไทรย์</h3>
+      <p style="color: #cbd5e1;">City Digital Data Platform</p>
+    </div>
+
+    <div class="login-btn-container">
+      <button id="authBtn" class="btn-login" onclick="showPinModal()"><i class="fas fa-lock"></i> เข้าสู่ระบบเจ้าหน้าที่</button>
+    </div>
+    
+    <div class="search-container">
+      <input type="text" id="searchInput" class="search-box" placeholder="ค้นหาสถานที่, ชื่อ, เบอร์โทร..." list="searchList" onchange="performSearch()">
+      <datalist id="searchList"></datalist>
+    </div>
+
+    <div class="analysis-panel">
+      <div class="tool-item">
+        <span style="color: #0ea5e9;"><i class="fas fa-cloud-showers-heavy"></i> เรดาร์กลุ่มฝน (Real-time)</span>
+        <label class="switch"><input type="checkbox" id="rainToggle" onchange="toggleRainRadar()"><span class="slider" style="background-color: #0ea5e9;"></span></label>
+      </div>
+      <div class="tool-item">
+        <span><i class="fas fa-fire"></i> แผนที่ความร้อน (Heatmap)</span>
+        <label class="switch"><input type="checkbox" id="heatmapToggle" onchange="toggleHeatmap()"><span class="slider" style="background-color: #f59e0b;"></span></label>
+      </div>
+      <div class="tool-item">
+        <span style="color: #3b82f6;"><i class="fas fa-city"></i> โหมดตึก 3 มิติ (3D)</span>
+        <label class="switch"><input type="checkbox" id="osmbToggle" onchange="toggle3D()"><span class="slider" style="background-color: #3b82f6;"></span></label>
+      </div>
+      <div class="tool-item">
+        <span style="color: #ef4444;"><i class="fas fa-bullseye"></i> รัศมีวิเคราะห์ (Buffer 500ม.)</span>
+        <label class="switch"><input type="checkbox" id="bufferToggle" onchange="toggleBufferMode()"><span class="slider" style="background-color: #ef4444;"></span></label>
+      </div>
+    </div>
+
+    <button class="btn-dashboard" onclick="openDashboard()"><i class="fas fa-chart-pie"></i> แดชบอร์ดสรุปข้อมูล</button>
+    <div id="menu-container" style="overflow-y: auto; flex-grow: 1;"></div>
+  </div>
+
+  <div id="weatherWidget" class="weather-widget">
+    <div class="weather-header">📍 ตำบลวัดไทรย์ (Real-time)</div>
+    <div class="weather-item"><span><i class="fas fa-temperature-half"></i> อุณหภูมิ:</span> <span id="tempVal">-- °C</span></div>
+    <div class="weather-item"><span><i class="fas fa-smog"></i> PM 2.5:</span> <span id="pmVal">--</span></div>
+    <div class="weather-item"><span><i class="fas fa-leaf"></i> คุณภาพอากาศ:</span> <span id="aqiStatus" class="aqi-badge">...</span></div>
+  </div>
+
+  <button id="addDataBtn" class="add-data-btn" onclick="toggleAddMode()">
+    <i class="fas fa-map-marker-alt"></i> เพิ่มข้อมูลใหม่
+  </button>
+  <div id="addModeBanner" class="add-mode-banner">
+    <i class="fas fa-hand-pointer"></i> โหมดเพิ่มข้อมูล: กรุณาคลิกเลือกจุดบนแผนที่
+  </div>
+  <div id="toastMsg" class="toast-notification">✅ บันทึกข้อมูลสำเร็จ!</div>
+
+  <div id="map"></div>
+
+  <div id="pinModal" class="modal-overlay" style="z-index: 3000;">
+    <div class="pin-modal-content">
+      <span style="position:absolute; top:15px; right:20px; font-size:24px; cursor:pointer; color:#94a3b8;" onclick="closePinModal()">×</span>
+      <h3><i class="fas fa-user-shield" style="color:#3b82f6;"></i> ยืนยันตัวตนเจ้าหน้าที่</h3>
+      <p style="font-size:13px; color:#64748b;">กรุณาใส่รหัสผ่าน 4 หลัก เพื่อเข้าถึงข้อมูล</p>
+      <input type="password" id="pinInput" class="pin-input" maxlength="4" placeholder="••••">
+      <div id="pinError" class="pin-error">❌ รหัสผ่านไม่ถูกต้อง!</div>
+      <button class="pin-submit" onclick="verifyPin()">ยืนยัน (Unlock)</button>
+    </div>
+  </div>
+
+  <div id="addFormModal" class="modal-overlay" style="z-index: 3000;">
+    <div class="form-modal-content">
+      <span style="position:absolute; top:15px; right:20px; font-size:24px; cursor:pointer; color:#94a3b8;" onclick="closeAddForm()">×</span>
+      <h3><i class="fas fa-plus-circle" style="color:#10b981;"></i> เพิ่มข้อมูลลงแผนที่</h3>
+      <div class="form-group"><label>หมวดหมู่ข้อมูล (เลือกตารางปลายทาง)</label><select id="addLayerSelect" class="form-control"></select></div>
+      <div class="form-group"><label>ชื่อสถานที่ / ชื่อบุคคล *</label><input type="text" id="addName" class="form-control" placeholder="ระบุชื่อ..." required></div>
+      <div class="form-row">
+        <div class="form-group" style="flex: 1;"><label>ละติจูด (Lat)</label><input type="text" id="addLat" class="form-control" readonly></div>
+        <div class="form-group" style="flex: 1;"><label>ลองจิจูด (Lng)</label><input type="text" id="addLng" class="form-control" readonly></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex: 1;"><label>เบอร์ติดต่อ (ถ้ามี)</label><input type="text" id="addPhone" class="form-control" placeholder="08X-XXX-XXXX"></div>
+        <div class="form-group" style="flex: 1;"><label>คะแนน ADL (เฉพาะผู้ป่วย)</label><input type="number" id="addADL" class="form-control" placeholder="0-20"></div>
+      </div>
+      <div class="form-group"><label>รายละเอียดเพิ่มเติม</label><textarea id="addDetail" class="form-control" rows="3" placeholder="ระบุรายละเอียดเพิ่มเติม..."></textarea></div>
+      <button class="btn-submit" onclick="submitNewData()" id="saveBtn"><i class="fas fa-save"></i> บันทึกข้อมูล</button>
+    </div>
+  </div>
+
+ <div id="dashboardModal" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal-btn" style="position:absolute; top:25px; right:30px; font-size:32px; cursor:pointer; color:#64748b; z-index:100;" onclick="closeDashboard()">×</span>
+      
+      <div class="dash-header-container">
+        <h2 class="dash-title">
+          <i class="fas fa-laptop-medical" style="color:#3b82f6;"></i> ศูนย์ข้อมูลสถิติเมือง
+        </h2>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div class="dash-tabs">
+            <button class="dash-tab-btn active" onclick="switchTab('tab-overview', this)"><i class="fas fa-globe"></i> ภาพรวม</button>
+            <button class="dash-tab-btn" onclick="switchTab('tab-pop', this)"><i class="fas fa-users"></i> ประชากร</button>
+            <button class="dash-tab-btn" onclick="switchTab('tab-health', this)"><i class="fas fa-heartbeat"></i> สุขภาพ</button>
+            <button class="dash-tab-btn" onclick="switchTab('tab-infra', this)"><i class="fas fa-city"></i> โครงสร้าง</button>
+          </div>
+          <button class="btn-print" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์รายงานสรุป</button>
+        </div>
+      </div>
+      
+      <div id="tab-overview" class="dash-tab-content active">
+        <div class="stat-card-container">
+          <div class="stat-card card-total"><h4>👥 ประชากรรวม</h4><div id="overviewPop" class="val">0</div></div>
+          <div class="stat-card card-alert"><h4>🚨 ผู้ป่วยต้องดูแลพิเศษ</h4><div id="overviewBedridden" class="val">0</div></div>
+          <div class="stat-card card-cctv"><h4>📹 จุดกล้อง CCTV</h4><div id="overviewCCTV" class="val">0</div></div>
+        </div>
+      </div>
+
+      <div id="tab-pop" class="dash-tab-content">
+        <div class="stat-card-container">
+          <div class="stat-card card-total"><h4>👥 ประชากรรวม</h4><div id="sumTotal" class="val">0</div></div>
+          <div class="stat-card card-male"><h4>👨 ประชากรชาย</h4><div id="sumMale" class="val">0</div></div>
+          <div class="stat-card card-female"><h4>👩 ประชากรหญิง</h4><div id="sumFemale" class="val">0</div></div>
+        </div>
+        <div class="dash-box">
+          <h3><i class="fas fa-chart-bar" style="color:#3b82f6;"></i> โครงสร้างประชากรรายหมู่บ้าน</h3>
+          <div style="position: relative; height: 320px; width: 100%;">
+            <canvas id="popChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-health" class="dash-tab-content">
+        <div class="dash-grid-main">
+          <div class="dash-box">
+            <h3><i class="fas fa-chart-pie" style="color:#f59e0b;"></i> สัดส่วนภาวะพึ่งพิง (ADL)</h3>
+            <div style="position: relative; height: 320px; width: 100%; display: flex; justify-content: center;">
+              <canvas id="adlChart"></canvas>
+            </div>
+          </div>
+          <div class="dash-box" style="border-top: 4px solid #ef4444;">
+            <h3 style="color:#b91c1c;"><i class="fas fa-exclamation-triangle"></i> ต้องดูแลพิเศษ (ADL 0-4)</h3>
+            <ul class="urgent-list" id="urgentListDisplay"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-infra" class="dash-tab-content">
+        <div class="stat-card-container">
+          <div class="stat-card" style="background: linear-gradient(135deg, #475569, #334155);"><h4>🗑️ จุดทิ้งขยะ</h4><div id="statTrash" class="val">0</div></div>
+          <div class="stat-card" style="background: linear-gradient(135deg, #dc2626, #b91c1c);"><h4>🧯 จุดถังดับเพลิง</h4><div id="statFire" class="val">0</div></div>
+          <div class="stat-card" style="background: linear-gradient(135deg, #ca8a04, #a16207);"><h4>💡 จุดไฟส่องสว่าง</h4><div id="statElectric" class="val">0</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/javascript">
+    var centerLat = 15.710;
+    var centerLng = 100.100;
+    
+    var isAuthorized = false; var SECRET_PIN = "9999"; var rawSettingsData = []; 
+
+    function hideSplashScreen() {
+      var splash = document.getElementById('splash-screen'); splash.classList.add('hidden');
+      setTimeout(function() { splash.style.display = 'none'; }, 800);
+    }
+    setTimeout(hideSplashScreen, 6000);
+
+    var streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+    var satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' });
+    var radarMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '© CartoDB' });
+    
+    var map = L.map('map', { center: [centerLat, centerLng], zoom: 14, layers: [streetMap], zoomControl: false });
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    var baseMaps = { "🗺️ แผนที่ถนน": streetMap, "🛰️ ดาวเทียม": satelliteMap, "📡 เรดาร์มืด": radarMap };
+    L.control.layers(baseMaps, null, {position: 'bottomright'}).addTo(map);
+
+    var locateControl = L.control({position: 'bottomright'});
+    locateControl.onAdd = function (map) {
+      var div = L.DomUtil.create('div', 'leaflet-bar'); div.innerHTML = '<div style="background:white; padding:8px 10px; cursor:pointer; font-size:18px; border-radius:4px;" title="ค้นหาตำแหน่งของฉัน" onclick="findMyLocation()"><i class="fas fa-crosshairs" style="color:#3b82f6;"></i></div>'; return div;
+    }; locateControl.addTo(map);
+
+    var userMarker;
+    function findMyLocation() { map.locate({setView: true, maxZoom: 16}); }
+    map.on('locationfound', function(e) {
+      if(userMarker) { map.removeLayer(userMarker); }
+      var pulseIcon = L.divIcon({ className: 'custom-icon-wrapper', html: '<div class="radar-pulse-marker"></div>', iconSize: [20, 20] });
+      userMarker = L.marker(e.latlng, {icon: pulseIcon}).addTo(map).bindPopup("<b>📍 ตำแหน่งของคุณ</b>").openPopup();
+    });
+
+    var layerGroups = {}; var searchableItems = []; var heatData = {}; var osmb = new OSMBuildings(map);
+    var heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}); 
+    var bufferLayer = L.layerGroup().addTo(map); var isBufferMode = false; var rainLayer = null;
+    var statsData = { red: 0, orange: 0, green: 0 }; var urgentPatients = []; var infraStats = { cctv: 0, trash: 0, fire: 0, electric: 0 }; 
+
+    var isAddMode = false;
+    function toggleAddMode() {
+      isAddMode = !isAddMode; var btn = document.getElementById('addDataBtn'); var banner = document.getElementById('addModeBanner');
+      if (isAddMode) { btn.innerHTML = '<i class="fas fa-times"></i> ยกเลิกการเพิ่ม'; btn.classList.add('active'); banner.style.display = 'block'; document.getElementById('map').classList.add('add-mode-active'); } 
+      else { btn.innerHTML = '<i class="fas fa-map-marker-alt"></i> เพิ่มข้อมูลใหม่'; btn.classList.remove('active'); banner.style.display = 'none'; document.getElementById('map').classList.remove('add-mode-active'); }
+    }
+
+    map.on('click', function(e) { if (isAddMode) { openAddForm(e.latlng); } else if (isBufferMode) { handleBufferClick(e.latlng); } });
+
+    function openAddForm(latlng) {
+      document.getElementById('addLat').value = latlng.lat.toFixed(6); document.getElementById('addLng').value = latlng.lng.toFixed(6);
+      var select = document.getElementById('addLayerSelect'); select.innerHTML = '';
+      rawSettingsData.forEach(function(item) { if (item.Type !== "GeoJSON" && item.Status === "Active") { var opt = document.createElement('option'); opt.value = item.SheetName; opt.innerText = item.Category + " > " + item.LayerName; select.appendChild(opt); } });
+      document.getElementById('addFormModal').style.display = 'flex';
+    }
+    function closeAddForm() { document.getElementById('addFormModal').style.display = 'none'; }
+
+    function submitNewData() {
+      var name = document.getElementById('addName').value; if (!name) { alert("กรุณาระบุชื่อสถานที่/บุคคล"); return; }
+      document.getElementById('saveBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...'; document.getElementById('saveBtn').disabled = true;
+      var payload = { SheetName: document.getElementById('addLayerSelect').value, Name: name, Latitude: document.getElementById('addLat').value, Longitude: document.getElementById('addLng').value, Detail: document.getElementById('addDetail').value, Phone: document.getElementById('addPhone').value, ADL_Score: document.getElementById('addADL').value };
+      google.script.run.withSuccessHandler(function(res) {
+        closeAddForm(); toggleAddMode(); document.getElementById('saveBtn').innerHTML = '<i class="fas fa-save"></i> บันทึกข้อมูล'; document.getElementById('saveBtn').disabled = false;
+        document.getElementById('addName').value = ''; document.getElementById('addDetail').value = ''; document.getElementById('addPhone').value = ''; document.getElementById('addADL').value = '';
+        var toast = document.getElementById('toastMsg'); toast.style.display = 'block'; setTimeout(function() { toast.style.display = 'none'; location.reload(); }, 2500); 
+      }).saveNewData(payload);
+    }
+
+    function toggleMobileSidebar() { document.getElementById('sidebar').classList.toggle('show'); }
+    function switchTab(tabId, btnElement) {
+      var contents = document.getElementsByClassName('dash-tab-content'); for (var i = 0; i < contents.length; i++) { contents[i].classList.remove('active'); }
+      var btns = document.getElementsByClassName('dash-tab-btn'); for (var j = 0; j < btns.length; j++) { btns[j].classList.remove('active'); }
+      document.getElementById(tabId).classList.add('active'); btnElement.classList.add('active');
+    }
+
+    function showPinModal() { document.getElementById('pinModal').style.display = 'flex'; document.getElementById('pinInput').focus(); }
+    function closePinModal() { document.getElementById('pinModal').style.display = 'none'; document.getElementById('pinError').style.display = 'none'; document.getElementById('pinInput').value = ''; }
+    
+    function verifyPin() {
+      var input = document.getElementById('pinInput').value;
+      if (input === SECRET_PIN) {
+        isAuthorized = true; closePinModal();
+        var authBtn = document.getElementById('authBtn'); authBtn.innerHTML = '<i class="fas fa-check-circle"></i> ปลดล็อกข้อมูลแล้ว'; authBtn.classList.add('unlocked');
+        document.getElementById('addDataBtn').style.display = 'block'; buildMenu(rawSettingsData); 
+      } else { document.getElementById('pinError').style.display = 'block'; }
+    }
+
+    function getEmbedUrl(url) { if (!url) return ''; var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/; var match = url.match(regExp); if (match && match[2].length == 11) { return 'https://www.youtube.com/embed/' + match[2] + '?autoplay=1&mute=1'; } return url; }
+
+    function fetchWeatherAndAQI() {
+      fetch("https://api.open-meteo.com/v1/forecast?latitude=" + centerLat + "&longitude=" + centerLng + "&current=temperature_2m&timezone=Asia/Bangkok").then(function(res) { return res.json(); }).then(function(data) { if(data.current) document.getElementById('tempVal').innerText = data.current.temperature_2m + " °C"; }).catch(function(err){});
+      fetch("https://air-quality-api.open-meteo.com/v1/air-quality?latitude=" + centerLat + "&longitude=" + centerLng + "&current=pm2_5&timezone=Asia/Bangkok").then(function(res) { return res.json(); }).then(function(data) {
+          if(data.current && data.current.pm2_5 !== undefined) {
+            var pm = data.current.pm2_5; document.getElementById('pmVal').innerText = pm + " µg/m³"; var badge = document.getElementById('aqiStatus');
+            if (pm <= 15) { badge.innerText = "ดีเยี่ยม"; badge.style.background = "#10b981"; } else if (pm <= 25) { badge.innerText = "ปานกลาง"; badge.style.background = "#f59e0b"; } else if (pm <= 37.5) { badge.innerText = "เริ่มมีผลกระทบ"; badge.style.background = "#f97316"; } else { badge.innerText = "มีผลกระทบต่อสุขภาพ"; badge.style.background = "#ef4444"; }
+          }
+      }).catch(function(err){});
+    }
+    fetchWeatherAndAQI();
+
+    google.script.run.withSuccessHandler(function(settings) { rawSettingsData = settings; buildMenu(settings); hideSplashScreen(); }).getSystemSettings();
+
+    function buildMenu(settings) {
+      var menuContainer = document.getElementById('menu-container'); menuContainer.innerHTML = ''; var groupedSettings = {};
+      settings.forEach(function(curr) { if (!groupedSettings[curr.Category]) { groupedSettings[curr.Category] = []; } groupedSettings[curr.Category].push(curr); });
+      for (var category in groupedSettings) {
+        var layers = groupedSettings[category];
+        var accBtn = document.createElement('button'); accBtn.className = 'accordion-btn active'; accBtn.innerHTML = "<span>" + category + "</span> <i class='fas fa-chevron-down'></i>";
+        var accContent = document.createElement('div'); accContent.className = 'accordion-content'; accContent.style.maxHeight = "1000px";
+        accBtn.addEventListener('click', function() { this.classList.toggle('active'); var icon = this.querySelector('i'); if (this.classList.contains('active')) { icon.className = "fas fa-chevron-down"; this.nextElementSibling.style.maxHeight = this.nextElementSibling.scrollHeight + "px"; } else { icon.className = "fas fa-chevron-right"; this.nextElementSibling.style.maxHeight = null; } });
+        menuContainer.appendChild(accBtn);
+        layers.forEach(function(setting) {
+          if(!layerGroups[setting.LayerID]) { layerGroups[setting.LayerID] = L.layerGroup().addTo(map); heatData[setting.LayerID] = []; loadDataToMap(setting); }
+          var isSensitive = (setting.Category === "ข้อมูลประชาชน" || setting.Category === "ข้อมูลสุขภาพ");
+          var disableHTML = (isSensitive && !isAuthorized) ? 'disabled' : ''; var lockIconHTML = (isSensitive && !isAuthorized) ? '<i class="fas fa-lock" style="color:#ef4444; width:20px;"></i> ' : '';
+          var iconClass = setting.Icon ? setting.Icon : "fas fa-map-marker"; var isChecked = (setting.Category === "ศูนย์ข้อมูลแผนที่") ? "checked" : "";
+          if(!isChecked || disableHTML) { map.removeLayer(layerGroups[setting.LayerID]); isChecked = ""; }
+          var layerDiv = document.createElement('div'); layerDiv.className = 'layer-item' + (disableHTML ? ' locked' : '');
+          layerDiv.innerHTML = '<label class="switch"><input type="checkbox" id="layer_' + setting.LayerID + '" value="' + setting.LayerID + '" ' + isChecked + ' ' + disableHTML + ' onchange="toggleLayer(this.value)"><span class="slider"></span></label><span style="font-size: 14px;">' + lockIconHTML + '<i class="' + iconClass + '" style="color:#64748b; width:20px;"></i> ' + setting.LayerName + '</span>';
+          accContent.appendChild(layerDiv);
+        });
+        menuContainer.appendChild(accContent);
+      }
+    }
+
+    function loadDataToMap(setting) {
+      google.script.run.withSuccessHandler(function(data) {
+        var searchList = document.getElementById('searchList');
+        data.forEach(function(item) {
+          if (setting.SheetName === "Infra_CCTV") { infraStats.cctv++; } else if (setting.SheetName === "Infra_Trash") { infraStats.trash++; } else if (setting.SheetName === "Infra_Fire") { infraStats.fire++; } else if (setting.SheetName === "Infra_Electric") { infraStats.electric++; }
+
+          if (setting.Type === "GeoJSON" && item.GeoJSON) {
+            try { var geoData = JSON.parse(item.GeoJSON); var polyColor = item.Color ? item.Color : "#3b82f6"; var geoLayer = L.geoJSON(geoData, { style: { color: polyColor, weight: 3, fillOpacity: 0.15 } }).bindPopup('<div class="popup-content"><h4>' + item.Name + '</h4><p>' + (item.Detail || "") + '</p></div>').addTo(layerGroups[setting.LayerID]); geoLayer.on('click', function(e) { handleBufferClick(e.latlng); }); } catch (e) {}
+          } 
+          else if (item.Latitude && item.Longitude) {
+            var latlng = [item.Latitude, item.Longitude]; heatData[setting.LayerID].push(latlng); 
+            var iconClass = setting.Icon ? setting.Icon : "fas fa-info-circle"; var markerHtml = ""; var popupWidth = "280px"; var phoneLink = ""; var videoHtml = "";
+
+            var itemDetailHTML = '<table class="info-table">';
+            for (var key in item) {
+              if (!item.hasOwnProperty(key)) continue; var val = item[key];
+              if (!val || val === "") continue; var skipKeys = ["ID", "Name", "Latitude", "Longitude", "GeoJSON", "Color", "Video_URL"]; if (skipKeys.indexOf(key) > -1) continue;
+              var keyLower = key.toLowerCase();
+              if (keyLower === "phone" || key === "เบอร์โทร" || key === "เบอร์ติดต่อ") { phoneLink = val; itemDetailHTML += '<tr><th>📞 เบอร์ติดต่อ</th><td>' + val + '</td></tr>'; } 
+              else if (key === "ADL_Score" || key === "คะแนน ADL") { var adl = parseInt(val); var badgeClass = adl <= 4 ? "badge-red" : (adl <= 8 ? "badge-orange" : "badge-green"); itemDetailHTML += '<tr><th><i class="fas fa-heartbeat"></i> ADL</th><td><span class="badge ' + badgeClass + '">' + val + ' คะแนน</span></td></tr>'; }
+              else if (key === "Camera_Count") { itemDetailHTML += '<tr><th>📹 จำนวนกล้อง</th><td><span style="color:#3b82f6; font-weight:bold;">' + val + ' ตัว</span></td></tr>'; }
+              else if (key === "Status" || key === "สถานะ") { var statClass = "badge-gray"; if (val.indexOf("ปกติ") > -1 || val.indexOf("ใช้งานได้") > -1) statClass = "badge-green"; else if (val.indexOf("เสีย") > -1 || val.indexOf("ซ่อม") > -1) statClass = "badge-red"; itemDetailHTML += '<tr><th>📌 สถานะ</th><td><span class="badge ' + statClass + '">' + val + '</span></td></tr>'; }
+              else { itemDetailHTML += '<tr><th>' + key + '</th><td>' + val + '</td></tr>'; }
+            }
+            itemDetailHTML += '</table>';
+
+            if (item.Video_URL) { popupWidth = "320px"; var embed = getEmbedUrl(item.Video_URL); if(embed) { videoHtml = '<div style="margin-bottom:12px;"><iframe width="100%" height="160" src="' + embed + '" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen style="border-radius:8px;"></iframe></div>'; } }
+            var actionBtns = '<a href="https://www.google.com/maps/dir/?api=1&destination=$' + item.Latitude + ',' + item.Longitude + '" target="_blank" class="btn-navigate"><i class="fas fa-location-arrow"></i> นำทางไปที่นี่</a>';
+            if (phoneLink) { actionBtns += '<a href="tel:' + phoneLink + '" class="btn-call"><i class="fas fa-phone-alt"></i> โทรด่วน</a>'; }
+
+            if (setting.Type === "Point_Condition") {
+              var mColor = "#10b981"; var adlScr = parseInt(item.ADL_Score || 11);
+              if (adlScr <= 4) { mColor = "#ef4444"; statsData.red++; urgentPatients.push(item); } else if (adlScr <= 8) { mColor = "#f59e0b"; statsData.orange++; } else { statsData.green++; }
+              markerHtml = '<div class="custom-marker adl-marker" style="background-color: ' + mColor + '; border: 2px solid white; color: white;"><i class="' + iconClass + '"></i></div>';
+            } else { markerHtml = '<div class="custom-marker" style="color: #0f172a; border-color: #0f172a; background: white;"><i class="' + iconClass + '"></i></div>'; }
+
+            var popupHtml = '<div class="popup-content" style="min-width: ' + popupWidth + ';"><h4><i class="' + iconClass + '"></i> ' + item.Name + '</h4>' + videoHtml + itemDetailHTML + actionBtns + '</div>';
+            var customIcon = L.divIcon({ className: 'custom-icon-wrapper', html: markerHtml, iconSize: [30, 30], iconAnchor: [15, 15] });
+            var marker = L.marker(latlng, { icon: customIcon }).bindPopup(popupHtml).addTo(layerGroups[setting.LayerID]);
+            
+            marker.on('click', function(e) { if (isBufferMode) { handleBufferClick(e.latlng); } e.originalEvent.stopPropagation(); });
+            searchableItems.push({ name: item.Name, lat: item.Latitude, lng: item.Longitude, markerObj: marker });
+            var option = document.createElement('option'); option.value = item.Name; searchList.appendChild(option);
+          }
+        });
+        if(setting.Type === "Point_Condition" && adlChartInstance) { updateADLChart(); }
+        updateInfraStats();
+      }).getLayerData(setting.SheetName);
+    }
+
+    function toggleRainRadar() {
+      var isChecked = document.getElementById('rainToggle').checked;
+      if (isChecked) {
+        fetch('https://api.rainviewer.com/public/weather-maps.json').then(function(res) { return res.json(); }).then(function(data) {
+          var pastRadar = data.radar.past; var latestPath = pastRadar[pastRadar.length - 1].path; 
+          rainLayer = L.tileLayer('https://tilecache.rainviewer.com' + latestPath + '/256/{z}/{x}/{y}/2/1_1.png', { opacity: 0.6, zIndex: 10 }).addTo(map);
+        }).catch(function(err){});
+      } else { if (rainLayer) { map.removeLayer(rainLayer); rainLayer = null; } }
+    }
+
+    function toggleBufferMode() { isBufferMode = document.getElementById('bufferToggle').checked; if (!isBufferMode) { bufferLayer.clearLayers(); } }
+    function handleBufferClick(latlng) { if (isBufferMode) { bufferLayer.clearLayers(); L.circle(latlng, { radius: 500, color: '#ef4444', weight: 2, fillColor: '#fca5a5', fillOpacity: 0.3 }).addTo(bufferLayer); } }
+    function toggleLayer(layerID) { var isChecked = document.getElementById('layer_' + layerID).checked; if (isChecked) { map.addLayer(layerGroups[layerID]); } else { map.removeLayer(layerGroups[layerID]); } if (document.getElementById('heatmapToggle').checked) { updateHeatmapData(); } }
+    function toggleHeatmap() { if (document.getElementById('heatmapToggle').checked) { document.body.classList.add('heatmap-active'); map.addLayer(heatLayer); updateHeatmapData(); } else { document.body.classList.remove('heatmap-active'); map.removeLayer(heatLayer); } }
+    function updateHeatmapData() { var activePoints = []; for(var layerID in layerGroups) { if(document.getElementById('layer_'+layerID).checked && heatData[layerID]) { activePoints = activePoints.concat(heatData[layerID]); } } heatLayer.setLatLngs(activePoints); }
+    function toggle3D() { if (document.getElementById('osmbToggle').checked) { osmb.load('https://{s}.data.osmbuildings.org/0.2/anonymous/tile/{z}/{x}/{y}.json'); if (map.getZoom() < 16) { map.setZoom(17); } } else { osmb.load(''); } }
+    function performSearch() { var val = document.getElementById('searchInput').value; var found = null; for (var i = 0; i < searchableItems.length; i++) { if (searchableItems[i].name === val) { found = searchableItems[i]; break; } } if(found && found.lat) { map.flyTo([found.lat, found.lng], 18, { animate: true, duration: 1.5 }); setTimeout(function() { found.markerObj.openPopup(); handleBufferClick([found.lat, found.lng]); }, 1500); if(window.innerWidth <= 768) { toggleMobileSidebar(); } } }
+    function updateInfraStats() { document.getElementById('overviewCCTV').innerText = infraStats.cctv; document.getElementById('statTrash').innerText = infraStats.trash; document.getElementById('statFire').innerText = infraStats.fire; document.getElementById('statElectric').innerText = infraStats.electric; }
+
+    /* 📊 อัปเกรดความสวยงามของกราฟ */
+    Chart.defaults.font.family = "'Sarabun', sans-serif";
+    Chart.defaults.color = '#475569';
+
+    var adlCtx = document.getElementById('adlChart').getContext('2d'); 
+    var adlChartInstance = new Chart(adlCtx, { 
+      type: 'doughnut', 
+      data: { 
+        labels: ['ติดเตียง','ติดบ้าน','ติดสังคม'], 
+        datasets: [{ data:[0,0,0], backgroundColor: ['#ef4444','#f59e0b','#10b981'], borderWidth: 0, hoverOffset: 6 }] 
+      }, 
+      options: { cutout: '75%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } } } 
+    });
+    
+    function updateADLChart() { 
+      adlChartInstance.data.datasets[0].data = [statsData.red, statsData.orange, statsData.green]; adlChartInstance.update(); 
+      document.getElementById('overviewBedridden').innerText = statsData.red; var listHTML = ""; if (urgentPatients.length === 0) { listHTML = "<li style='border-left:4px solid #10b981; background:#ecfdf5; color:#047857;'>ไม่มีผู้ป่วยที่ต้องดูแลพิเศษในขณะนี้</li>"; } else { urgentPatients.forEach(function(p) { listHTML += "<li>" + p.Name + " <span>ADL: " + p.ADL_Score + "</span></li>"; }); } document.getElementById('urgentListDisplay').innerHTML = listHTML; 
+    }
+    
+    var popChartInstance;
+    function loadPopulationData() { 
+      google.script.run.withSuccessHandler(function(data) { 
+        var labels = []; var maleData = []; var femaleData = []; var sumMale = 0, sumFemale = 0, sumTotal = 0; 
+        data.forEach(function(row) { if(row.Village_Name) { labels.push("หมู่ " + row.Moo + " " + row.Village_Name); maleData.push(row.Pop_Male); femaleData.push(row.Pop_Female); sumMale += parseInt(row.Pop_Male) || 0; sumFemale += parseInt(row.Pop_Female) || 0; sumTotal += parseInt(row.Pop_Total) || 0; } }); 
+        document.getElementById('sumTotal').innerText = sumTotal.toLocaleString(); document.getElementById('overviewPop').innerText = sumTotal.toLocaleString(); document.getElementById('sumMale').innerText = sumMale.toLocaleString(); document.getElementById('sumFemale').innerText = sumFemale.toLocaleString(); 
+        if(popChartInstance) { popChartInstance.destroy(); } 
+        var popCtx = document.getElementById('popChart').getContext('2d'); 
+        popChartInstance = new Chart(popCtx, { 
+          type: 'bar', 
+          data: { 
+            labels: labels, 
+            datasets: [
+              { label: 'ชาย', data: maleData, backgroundColor: '#3b82f6', borderRadius: 6, borderSkipped: false }, 
+              { label: 'หญิง', data: femaleData, backgroundColor: '#f43f5e', borderRadius: 6, borderSkipped: false }
+            ] 
+          }, 
+          options: { 
+            responsive: true, maintainAspectRatio: false,
+            scales: { 
+              x: { stacked: true, grid: { display: false } }, 
+              y: { stacked: true, border: { display: false }, grid: { color: '#e2e8f0' } } 
+            }, 
+            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } } 
+          } 
+        }); 
+      }).getLayerData("Data_Population"); 
+    }
+
+    function openDashboard() { document.getElementById('dashboardModal').style.display = 'flex'; updateADLChart(); loadPopulationData(); }
+    function closeDashboard() { document.getElementById('dashboardModal').style.display = 'none'; }
+  </script>
 </body>
 </html>
